@@ -1280,6 +1280,13 @@ const getWorkdayIdFromName = (name = '') => {
   return match[0].trim().toUpperCase();
 };
 
+const normalizeExportName = (name, workdayId) => {
+  const value = String(name || '').trim();
+  if (!workdayId) return value;
+  const escapedId = workdayId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replace(new RegExp(`(?:\\s*\\(${escapedId}\\))+\\s*$`, 'i'), '').trim();
+};
+
 const exportHistoryCsv = () => {
   const rowsToExport = [...(historyTableBody?.rows || [])]
     .filter((row) => !row.hidden)
@@ -1406,12 +1413,13 @@ const exportHistoryCsv = () => {
   rowsToExport.forEach((row) => {
     const nameValue = String(row.name || '').trim();
     const workdayId = getWorkdayIdFromName(nameValue);
+    const normalizedName = normalizeExportName(nameValue, workdayId);
     const exportedRow = [
       row.dateSeat || '',
       row.mode || '',
       workdayId || '',
       row.email || '',
-      nameValue && workdayId ? `${nameValue} (${workdayId})` : nameValue,
+      normalizedName && workdayId ? `${normalizedName} (${workdayId})` : normalizedName,
       row.account || '',
       row.subprocess || '',
       row.level1Status || '',
