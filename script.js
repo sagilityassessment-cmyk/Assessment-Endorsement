@@ -402,7 +402,11 @@ const updateHistoryPagination = (matchingRows) => {
   const pageCount = Math.max(1, Math.ceil(matchingRows.length / HISTORY_PAGE_SIZE));
   historyPage = Math.min(historyPage, pageCount);
   const firstVisibleIndex = (historyPage - 1) * HISTORY_PAGE_SIZE;
-  matchingRows.forEach((row, index) => { row.hidden = index < firstVisibleIndex || index >= firstVisibleIndex + HISTORY_PAGE_SIZE; });
+  matchingRows.forEach((row, index) => {
+    const numberCell = row.cells[getHistoryColumnIndex('#')];
+    if (numberCell) numberCell.textContent = String(index + 1);
+    row.hidden = index < firstVisibleIndex || index >= firstVisibleIndex + HISTORY_PAGE_SIZE;
+  });
   if (historyPageStatus) historyPageStatus.textContent = `Page ${historyPage} of ${pageCount} (${matchingRows.length} records)`;
   if (historyPreviousPageButton) historyPreviousPageButton.disabled = historyPage <= 1;
   if (historyNextPageButton) historyNextPageButton.disabled = historyPage >= pageCount;
