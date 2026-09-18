@@ -48,17 +48,17 @@ onAuthStateChanged(auth, (user) => {
   onSnapshot(rowsDocument, (snapshot) => {
     const rows = snapshot.data()?.rows;
     if (Array.isArray(rows)) publishRows(rows);
-    else {
+    else if (!snapshot.exists()) {
       const localRows = window.getLocalHistoryRows?.();
-      if (Array.isArray(localRows)) setDoc(rowsDocument, { rows: localRows, updatedAt: serverTimestamp() });
+      if (Array.isArray(localRows) && localRows.length) setDoc(rowsDocument, { rows: localRows, updatedAt: serverTimestamp() });
     }
   });
   onSnapshot(thresholdDocument, (snapshot) => {
     const workbook = snapshot.data()?.workbook;
     if (typeof workbook === 'string' || Array.isArray(workbook)) publishThreshold(workbook);
-    else {
+    else if (!snapshot.exists()) {
       const localWorkbook = window.getLocalThresholdWorkbook?.();
-      if (Array.isArray(localWorkbook)) setDoc(thresholdDocument, { workbook: JSON.stringify(localWorkbook), updatedAt: serverTimestamp() });
+      if (Array.isArray(localWorkbook) && localWorkbook.length) setDoc(thresholdDocument, { workbook: JSON.stringify(localWorkbook), updatedAt: serverTimestamp() });
     }
   });
 });
