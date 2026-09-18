@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyA_UDbmN_mWkG4zeppYihulVL--X-vemAc',
@@ -19,10 +19,19 @@ const rowsDocument = doc(db, 'endorsementRows', 'shared');
 const thresholdDocument = doc(db, 'settings', 'thresholdWorkbook');
 
 let currentUser = null;
+let pendingRowsSnapshot = '';
+let pendingRows = null;
+let rowWriteInFlight = false;
+let lastRowsSnapshot = '';
 let resolveAuthReady;
 const authReady = new Promise((resolve) => { resolveAuthReady = resolve; });
 
-const publishRows = (rows) => window.applyRemoteHistoryRows?.(rows);
+const publishRows = (rows) => {
+  const snapshot = JSON.stringify(rows);
+  if (pendingRowsSnapshot && snapshot !== pendingRowsSnapshot) return;
+  if (snapshot === pendingRowsSnapshot) pendingRowsSnapshot = '';
+  window.applyRemoteHistoryRows?.(rows);
+};
 const publishThreshold = (workbook) => {
   try {
     const parsedWorkbook = typeof workbook === 'string' ? JSON.parse(workbook) : workbook;
@@ -36,10 +45,6 @@ onAuthStateChanged(auth, (user) => {
   currentUser = user;
   if (!user) return;
   resolveAuthReady(user);
-  getDoc(thresholdDocument).then((snapshot) => {
-    const workbook = snapshot.data()?.workbook;
-    if (typeof workbook === 'string' || Array.isArray(workbook)) publishThreshold(workbook);
-  }).catch((error) => console.error('Firebase threshold load failed', error));
   onSnapshot(rowsDocument, (snapshot) => {
     const rows = snapshot.data()?.rows;
     if (Array.isArray(rows)) publishRows(rows);
@@ -64,9 +69,30 @@ signInAnonymously(auth).catch((error) => {
 
 window.firebaseSync = {
   saveRows(rows) {
+    const snapshot = JSON.stringify(rows);
+    if (snapshot === lastRowsSnapshot && !pendingRows) return Promise.resolve();
+    lastRowsSnapshot = snapshot;
+    pendingRowsSnapshot = snapshot;
+    pendingRows = rows;
+    if (rowWriteInFlight) return Promise.resolve();
+    rowWriteInFlight = true;
     return authReady
-      .then(() => setDoc(rowsDocument, { rows, updatedAt: serverTimestamp() }))
-      .catch((error) => console.error('Firebase row sync failed', error));
+      .then(async () => {
+        while (pendingRows) {
+          const rowsToSave = pendingRows;
+          pendingRows = null;
+          await setDoc(rowsDocument, { rows: rowsToSave, updatedAt: serverTimestamp() });
+        }
+      })
+      .catch((error) => {
+        console.error('Firebase row sync failed', error);
+        pendingRows = null;
+        pendingRowsSnapshot = '';
+        lastRowsSnapshot = '';
+      })
+      .finally(() => {
+        rowWriteInFlight = false;
+      });
   },
   saveThreshold(workbook) {
     return authReady.then(() => setDoc(thresholdDocument, { workbook: JSON.stringify(workbook), updatedAt: serverTimestamp() }));

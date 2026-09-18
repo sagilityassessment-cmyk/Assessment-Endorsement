@@ -64,6 +64,15 @@
 
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="script.js"></script>
-  <script type="module" src="../firebase-sync.js"></script>
+  <script type="module">
+    const loadFirebaseSync = () => import('../firebase-sync.js').catch((error) => {
+      console.error('Firebase sync failed to load', error);
+    });
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(loadFirebaseSync, { timeout: 1500 });
+    } else {
+      window.setTimeout(loadFirebaseSync, 200);
+    }
+  </script>
 </body>
 </html>

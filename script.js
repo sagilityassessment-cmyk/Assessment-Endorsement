@@ -106,7 +106,7 @@ if (window.ResizeObserver && topbar) new ResizeObserver(syncTopbarSpace).observe
 const workdayStatusOptions = ['Review Stage', 'Recruiter Stage', 'Assessment Stage', 'Hiring Manager', 'Offer Stage', 'Internal Assessment', 'Fitment/Offer', 'Declined', 'EIT Movement Issue'];
 const HISTORY_STORAGE_KEY = 'endorsementHistoryRows';
 const CANDIDATE_DRAFT_STORAGE_KEY = 'endorsementCandidateDraft';
-const HISTORY_PAGE_SIZE = 15;
+const HISTORY_PAGE_SIZE = 50;
 let historyPage = 1;
 const SAMPLE_CANDIDATE_NAMES = new Set([
   'Brent Kennedy Baldia Osa', 'Ellen Mae Dianne Naporta', 'Lyka Mae Timario', 'Precious Joy Funa',
@@ -384,6 +384,13 @@ const updateHistoryActions = () => {
   if (deleteHistoryButton) deleteHistoryButton.disabled = !hasSelection;
 };
 
+const renumberHistoryRows = () => {
+  [...(historyTableBody?.rows || [])].forEach((row, index) => {
+    const numberCell = row.cells[getHistoryColumnIndex('#')];
+    if (numberCell) numberCell.textContent = String(index + 1);
+  });
+};
+
 const queueHistorySave = () => {
   clearTimeout(historyDebounceTimer);
   historyDebounceTimer = window.setTimeout(() => {
@@ -501,10 +508,7 @@ deleteHistoryButton?.addEventListener('click', () => {
   getHistoryCheckboxes()
     .filter((checkbox) => checkbox.checked)
     .forEach((checkbox) => checkbox.closest('tr')?.remove());
-  [...(historyTableBody?.rows || [])].forEach((row, index) => {
-    const numberCell = row.cells[getHistoryColumnIndex('#')];
-    if (numberCell) numberCell.textContent = index + 1;
-  });
+  renumberHistoryRows();
   refreshAssessmentNames();
   assessmentCandidateName?.dispatchEvent(new Event('change'));
   updateHistoryActions();
@@ -911,8 +915,9 @@ const refreshLevel1ThresholdStatuses = () => {
     const previousLevel2Status = level2StatusCell?.textContent || '';
     const previousLevel2Score = row.cells[getHistoryColumnIndex('Overall Matching Score Level 2')]?.textContent || '';
     updateLevel2Average(row);
-    applyLevel1Threshold(row);
-    applyLevel2Threshold(row);
+    const level1Status = applyLevel1Threshold(row);
+    if (level1Status === 'FAILED') setAdminStatus(level2StatusCell, '');
+    else applyLevel2Threshold(row);
     const previousRemarks = row.querySelector('.assessment-remarks-cell')?.textContent || '';
     updateAssessmentRemarks(row);
     statusChanged = statusChanged
@@ -1043,8 +1048,9 @@ const runLevelImport = () => {
     if (typingRetakeScore) matchingRow.cells[getHistoryColumnIndex('Typing Score Percentage')].textContent = typingRetakeScore;
     updateLevel2Average(matchingRow);
   }
-  applyLevel1Threshold(matchingRow);
-  applyLevel2Threshold(matchingRow);
+  const level1Status = applyLevel1Threshold(matchingRow);
+  if (level1Status === 'FAILED') setAdminStatus(matchingRow.querySelector('[data-admin-label="LEVEL 2"]'), '');
+  else applyLevel2Threshold(matchingRow);
   updateAssessmentRemarks(matchingRow);
   const importLevel3 = (text) => {
     if (!text) return 0;
@@ -1139,6 +1145,7 @@ const createHistoryRow = (candidate, rowNumber) => {
   row.innerHTML = `<td><input type="checkbox" aria-label="Select ${candidate.name}"></td><td><button class="view-button" type="button">View</button></td><td>${rowNumber}</td><td>${candidate.name}</td><td>${candidate.email}</td><td>${candidate.location}</td><td>${candidate.status}</td><td>${candidate.mode}</td><td>${candidate.education}</td><td>${candidate.segment}</td><td>${candidate.account}</td><td>${candidate.subprocess}</td><td>${candidate.recruiter}</td><td>${candidate.overallStatus || '-'}</td><td>${candidate.overallMatchingScore || '-'}</td><td>${candidate.situationalJudgement || '-'}</td><td>${candidate.logicalReasoning || '-'}</td><td>${candidate.customerSupportPersonality || '-'}</td><td>${candidate.claimsSupportMatch || '-'}</td><td>${candidate.salesSupportMatch || '-'}</td><td>${candidate.medicalAdministrationSupport || '-'}</td><td>${candidate.multitasking || '-'}</td><td>${candidate.learningAttitude || '-'}</td><td>${candidate.empathy || '-'}</td><td>${candidate.overallMatchingStatusLevel2 || '-'}</td><td>${candidate.overallMatchingScoreLevel || '-'}</td><td>${candidate.spokenLanguageAssessment || '-'}</td><td>${candidate.spokenLanguageProficiency1 || '-'}</td><td>${candidate.spokenLanguageProficiency2 || '-'}</td><td>${candidate.spokenLanguageProficiency3 || '-'}</td><td>${candidate.cefrLevel || '-'}</td><td>${candidate.standardEnglishLanguage || '-'}</td><td>${candidate.vocabulary || '-'}</td><td>${candidate.grammar || '-'}</td><td>${candidate.comprehension || '-'}</td><td>${candidate.typingSpeed || '-'}</td><td>${candidate.typingScorePercentage || '-'}</td><td>${candidate.standardComputerProficiency || '-'}</td><td>${candidate.customizedPhilippinesOncology || '-'}</td><td>${candidate.customizedPhilippinesAnatomy || '-'}</td><td>${candidate.labCorpAssessment || '-'}</td><td>${candidate.customizedPhilippinesClinical || '-'}</td><td>${candidate.customizedPhilippinesRegistered || '-'}</td><td>${candidate.spanishLatamProficiency || '-'}</td>`;
   const selectionCell = row.cells[0];
   const selectionCheckbox = selectionCell.querySelector('input[type="checkbox"]');
+  selectionCheckbox.addEventListener('change', updateHistoryActions);
   selectionCell.addEventListener('click', (event) => {
     if (event.target !== selectionCheckbox) selectionCheckbox.checked = !selectionCheckbox.checked;
     updateHistoryActions();
@@ -1526,7 +1533,6 @@ candidateForm?.addEventListener('submit', (event) => {
     return selectedOption?.disabled ? '-' : (field?.value.trim() || '-');
   };
   const selectedLocation = candidateLocation?.value.trim() || '';
-  const rowNumber = historyTableBody.rows.length + 1;
   historyTableBody.prepend(createHistoryRow({
     id: getValue('#candidate-id'),
     name: getValue('#workday-name'),
@@ -1540,7 +1546,8 @@ candidateForm?.addEventListener('submit', (event) => {
     subprocess: getValue('#subprocess'),
     recruiter: recruiterSelect?.value === 'Other' ? recruiterOtherName.value.trim() : getValue('#recruiter-name'),
     dateSeat: formatLocalDate(new Date())
-  }, rowNumber));
+  }, 1));
+  renumberHistoryRows();
   refreshAssessmentNames();
   updateHistoryActions();
   saveHistory();
