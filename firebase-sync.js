@@ -86,21 +86,16 @@ window.firebaseSync = {
     }));
     candidateSyncQueue = candidateSyncQueue.then(() => authReady.then(async (user) => {
       if (!user) return;
-      const nextRows = new Map(requestedRows.map((row) => [row.recordId, JSON.stringify(row)]));
       const changedRows = requestedRows.filter((row) => syncedCandidateRows.get(row.recordId) !== JSON.stringify(withoutSyncMetadata(row)));
-      const deletedIds = [...syncedCandidateRows.keys()].filter((recordId) => !nextRows.has(recordId));
-      const operationCount = Math.max(changedRows.length, deletedIds.length);
+      const operationCount = changedRows.length;
       for (let start = 0; start < operationCount; start += 200) {
         const batch = writeBatch(db);
         changedRows.slice(start, start + 200).forEach((row) => {
           batch.set(doc(candidatesCollection, row.recordId), { ...row, updatedAt: serverTimestamp() }, { merge: true });
         });
-        deletedIds.slice(start, start + 200).forEach((recordId) => {
-          batch.delete(doc(candidatesCollection, recordId));
-        });
         await batch.commit();
       }
-      syncedCandidateRows = nextRows;
+      changedRows.forEach((row) => syncedCandidateRows.set(row.recordId, JSON.stringify(row)));
     })).catch((error) => console.error('Firebase candidate save failed', error));
     return candidateSyncQueue;
   },

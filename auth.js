@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { getFirestore, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDZq9YjSktCV9onQkNKRNNVTqmpysIqOqs',
@@ -138,7 +138,7 @@ document.querySelector('.logout')?.addEventListener('click', async () => {
 document.querySelector('#adminLogoutLink')?.addEventListener('click', async (event) => {
   event.preventDefault();
   if (window.prompt('Enter the admin logout password:') !== 'Sagility_1') return;
-  await setDoc(sessionDocument, { logoutAt: Date.now() }, { merge: true }).catch((error) => {
+  await setDoc(sessionDocument, { logoutAt: serverTimestamp() }, { merge: true }).catch((error) => {
     console.error('Global logout signal failed', error);
   });
   await signOut(auth).catch(() => {});
@@ -150,9 +150,12 @@ onAuthStateChanged(auth, (user) => {
   stopGlobalLogoutListener = null;
   if (!user) return;
   stopGlobalLogoutListener = onSnapshot(sessionDocument, (snapshot) => {
-    const logoutAt = Number(snapshot.data()?.logoutAt || 0);
+    const logoutAt = snapshot.data()?.logoutAt?.toMillis?.() || 0;
     const sessionStarted = Number(sessionStorage.getItem(sessionStartedKey) || 0);
-    if (logoutAt > sessionStarted) lock();
+    if (logoutAt > sessionStarted) {
+      signOut(auth).catch(() => {});
+      lock();
+    }
   }, (error) => console.error('Global logout listener failed', error));
 });
 
