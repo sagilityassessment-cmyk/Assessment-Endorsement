@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Threshold Assessment Mapping</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Assessment mapping workspace</p>
+        <h1>Threshold</h1>
+        <p class="subtitle">Keep threshold data ready for mapping and add updates without replacing the workbook.</p>
+      </div>
+      <a class="back-link" href="../index.html">Endorsement portal</a>
+    </header>
+
+    <section class="control-panel" aria-labelledby="import-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Threshold data</p>
+          <h2 id="import-title">Maintain the workbook</h2>
+        </div>
+        <span id="storage-status" class="status-pill">No workbook loaded</span>
+      </div>
+      <div class="import-row">
+        <label class="file-picker" for="workbook-input">
+          <span>Optional Excel import</span>
+          <input id="workbook-input" type="file" accept=".xlsx,.xls,.csv">
+        </label>
+        <button id="sync-button" class="button button-primary" type="button">Save current workbook</button>
+        <button id="add-row-button" class="button button-primary" type="button">Add row</button>
+        <button id="clear-button" class="button button-quiet" type="button">Clear stored data</button>
+      </div>
+      <form id="row-editor" class="row-editor" hidden>
+        <div class="row-editor-heading">
+          <div>
+            <p class="eyebrow">Active sheet</p>
+            <h3 id="row-editor-title">Add threshold row</h3>
+          </div>
+          <button id="cancel-row-button" class="button button-quiet" type="button">Cancel</button>
+        </div>
+        <div id="row-editor-fields" class="row-editor-fields"></div>
+        <button class="button button-primary" type="submit">Add and sync row</button>
+      </form>
+      <p id="import-message" class="message" aria-live="polite">Your saved workbook stays available across devices. Add rows manually when new data arrives.</p>
+    </section>
+
+    <section class="workspace-panel" aria-labelledby="table-title">
+      <div class="panel-heading table-heading">
+        <div>
+          <p class="eyebrow">Imported workbook</p>
+          <h2 id="table-title">Threshold tables</h2>
+        </div>
+        <div class="table-tools">
+          <label class="search-box" for="table-search">
+            <span class="sr-only">Search imported data</span>
+            <input id="table-search" type="search" placeholder="Search all columns">
+          </label>
+          <button id="export-button" class="button button-primary" type="button">Export current sheet</button>
+        </div>
+      </div>
+      <nav id="sheet-tabs" class="sheet-tabs" aria-label="Workbook sheets"></nav>
+      <div id="table-summary" class="table-summary">Import a workbook to see its data here.</div>
+      <div class="table-frame">
+        <table id="data-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+        <div id="empty-state" class="empty-state">Your imported workbook will appear here.</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="script.js"></script>
+  <script type="module" src="../firebase-sync.js?v=20260919"></script>
+</body>
+</html>
