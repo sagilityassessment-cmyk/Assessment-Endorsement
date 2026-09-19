@@ -124,7 +124,12 @@ const SAMPLE_CANDIDATE_NAMES = new Set([
   'Cassandra Joy Paderna', 'Milo Navarro', 'Nina Verzosa', 'Jude Laurence Dela Cruz'
 ]);
 const removeSampleRows = (rows) => rows.filter((row) => !SAMPLE_CANDIDATE_NAMES.has(String(row?.name || '').trim()));
-const formatLocalDate = (date) => `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+const formatLocalDate = (date) => new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Manila',
+  month: 'numeric',
+  day: 'numeric',
+  year: 'numeric'
+}).format(date);
 const recruitersByLocation = {
   'Iloilo City': [
     'Feye S. Miado', 'Ciarra Mae Imbang', 'Louie Nila Tabares', 'Zaila Dexymae Adricula',
