@@ -1,5 +1,5 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, writeBatch, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -12,7 +12,9 @@ const firebaseConfig = {
   measurementId: 'G-KCHMYEPPKQ'
 };
 
-const app = initializeApp(firebaseConfig, 'endorsement-sync');
+const app = getApps().some((item) => item.name === 'endorsement')
+  ? getApp('endorsement')
+  : initializeApp(firebaseConfig, 'endorsement');
 const auth = getAuth(app);
 const db = getFirestore(app);
 const candidatesCollection = collection(db, 'endorsementCandidates');
@@ -44,13 +46,6 @@ onAuthStateChanged(auth, (user) => {
       .map((item) => withoutSyncMetadata(item.data()))
       .sort((first, second) => Number(first.order ?? 0) - Number(second.order ?? 0));
     syncedCandidateRows = new Map(rows.map((row) => [row.recordId, JSON.stringify(row)]));
-    if (!rows.length) {
-      const localRows = window.getLocalHistoryRows?.() || [];
-      if (localRows.length) {
-        window.firebaseSync?.saveRows(localRows);
-        return;
-      }
-    }
     window.applyRemoteHistoryRows?.(rows);
   }, (error) => console.error('Firebase candidate sync failed', error));
   onSnapshot(thresholdDocument, (snapshot) => {
@@ -70,11 +65,6 @@ onAuthStateChanged(auth, (user) => {
       publishThreshold([]);
     }
   }, (error) => console.error('Firebase threshold sync failed', error));
-});
-
-signInAnonymously(auth).catch((error) => {
-  console.error('Firebase anonymous sign-in failed', error);
-  resolveAuthReady(null);
 });
 
 window.firebaseSync = {

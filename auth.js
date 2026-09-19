@@ -1,4 +1,4 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
@@ -12,7 +12,9 @@ const firebaseConfig = {
   measurementId: 'G-KCHMYEPPKQ'
 };
 
-const app = initializeApp(firebaseConfig, 'endorsement-auth');
+const app = getApps().some((item) => item.name === 'endorsement')
+  ? getApp('endorsement')
+  : initializeApp(firebaseConfig, 'endorsement');
 const auth = getAuth(app);
 const db = getFirestore(app);
 const sessionDocument = doc(db, 'settings', 'adminSession');
