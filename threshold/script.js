@@ -205,7 +205,6 @@ clearButton.addEventListener('click', () => {
   workbookData = [];
   activeSheetIndex = 0;
   localStorage.removeItem(STORAGE_KEY);
-  workbookInput.value = '';
   sheetTabs.replaceChildren();
   storageStatus.textContent = 'No workbook loaded';
   setMessage('Stored threshold data cleared.');
