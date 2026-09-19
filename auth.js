@@ -1,5 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { getFirestore, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDZq9YjSktCV9onQkNKRNNVTqmpysIqOqs',
@@ -13,6 +14,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig, 'endorsement-auth');
 const auth = getAuth(app);
+const db = getFirestore(app);
+const sessionDocument = doc(db, 'settings', 'adminSession');
 const loginView = document.querySelector('#portalLoginView');
 const loginForm = document.querySelector('#portalLoginForm');
 const loginMessage = document.querySelector('#portalLoginMessage');
@@ -20,6 +23,7 @@ const sessionKey = 'endorsementPortalLoggedIn';
 const sessionStartedKey = 'endorsementPortalSessionStarted';
 const isAssessmentOnly = new URLSearchParams(window.location.search).has('assessmentOnly');
 let popupHideTimer = null;
+let stopGlobalLogoutListener = null;
 
 const getAuthErrorMessage = (error) => {
   const code = error?.code || '';
@@ -134,8 +138,22 @@ document.querySelector('.logout')?.addEventListener('click', async () => {
 document.querySelector('#adminLogoutLink')?.addEventListener('click', async (event) => {
   event.preventDefault();
   if (window.prompt('Enter the admin logout password:') !== 'Sagility_1') return;
+  await setDoc(sessionDocument, { logoutAt: Date.now() }, { merge: true }).catch((error) => {
+    console.error('Global logout signal failed', error);
+  });
   await signOut(auth).catch(() => {});
   lock();
+});
+
+onAuthStateChanged(auth, (user) => {
+  stopGlobalLogoutListener?.();
+  stopGlobalLogoutListener = null;
+  if (!user) return;
+  stopGlobalLogoutListener = onSnapshot(sessionDocument, (snapshot) => {
+    const logoutAt = Number(snapshot.data()?.logoutAt || 0);
+    const sessionStarted = Number(sessionStorage.getItem(sessionStartedKey) || 0);
+    if (logoutAt > sessionStarted) lock();
+  }, (error) => console.error('Global logout listener failed', error));
 });
 
 if (sessionStorage.getItem(sessionKey) === 'true' || isAssessmentOnly) unlock();
