@@ -501,7 +501,7 @@ window.applyRemoteHistoryRows = (savedRows) => {
   const remoteSnapshot = JSON.stringify(cleanedRows);
   if (localSnapshot === remoteSnapshot) return;
   window.localStorage?.setItem(HISTORY_STORAGE_KEY, remoteSnapshot);
-  if (!isUserEditingHistoryCell()) loadHistory();
+  loadHistory();
   refreshLevel1ThresholdStatuses();
 };
 
