@@ -26,11 +26,6 @@
         <span id="storage-status" class="status-pill">No workbook loaded</span>
       </div>
       <div class="import-row">
-        <label class="file-picker" for="workbook-input">
-          <span>Optional Excel import</span>
-          <input id="workbook-input" type="file" accept=".xlsx,.xls,.csv">
-        </label>
-        <button id="sync-button" class="button button-primary" type="button">Save current workbook</button>
         <button id="add-row-button" class="button button-primary" type="button">Add row</button>
         <button id="clear-button" class="button button-quiet" type="button">Clear stored data</button>
       </div>
@@ -59,7 +54,6 @@
             <span class="sr-only">Search imported data</span>
             <input id="table-search" type="search" placeholder="Search all columns">
           </label>
-          <button id="export-button" class="button button-primary" type="button">Export current sheet</button>
         </div>
       </div>
       <nav id="sheet-tabs" class="sheet-tabs" aria-label="Workbook sheets"></nav>
@@ -74,7 +68,6 @@
     </section>
   </main>
 
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="script.js"></script>
   <script type="module" src="../firebase-sync.js?v=20260919"></script>
 </body>

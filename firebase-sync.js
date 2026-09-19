@@ -55,10 +55,19 @@ onAuthStateChanged(auth, (user) => {
   }, (error) => console.error('Firebase candidate sync failed', error));
   onSnapshot(thresholdDocument, (snapshot) => {
     const workbook = snapshot.data()?.workbook;
-    if (typeof workbook === 'string' || Array.isArray(workbook)) publishThreshold(workbook);
-    else if (!snapshot.exists()) {
-      const localWorkbook = window.getLocalThresholdWorkbook?.() || [];
-      if (localWorkbook.length) window.firebaseSync?.saveThreshold(localWorkbook);
+    let remoteWorkbook = [];
+    try {
+      remoteWorkbook = typeof workbook === 'string' ? JSON.parse(workbook) : workbook;
+    } catch (error) {
+      console.error('Firebase threshold data is invalid', error);
+    }
+    const localWorkbook = window.getLocalThresholdWorkbook?.() || [];
+    if (Array.isArray(remoteWorkbook) && remoteWorkbook.length) {
+      publishThreshold(remoteWorkbook);
+    } else if (localWorkbook.length) {
+      window.firebaseSync?.saveThreshold(localWorkbook);
+    } else if (snapshot.exists()) {
+      publishThreshold([]);
     }
   }, (error) => console.error('Firebase threshold sync failed', error));
 });

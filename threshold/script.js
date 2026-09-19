@@ -1,14 +1,11 @@
 const STORAGE_KEY = 'thresholdWorkbookData';
 
-const workbookInput = document.querySelector('#workbook-input');
 const clearButton = document.querySelector('#clear-button');
-const syncButton = document.querySelector('#sync-button');
 const addRowButton = document.querySelector('#add-row-button');
 const rowEditor = document.querySelector('#row-editor');
 const rowEditorTitle = document.querySelector('#row-editor-title');
 const rowEditorFields = document.querySelector('#row-editor-fields');
 const cancelRowButton = document.querySelector('#cancel-row-button');
-const exportButton = document.querySelector('#export-button');
 const searchInput = document.querySelector('#table-search');
 const sheetTabs = document.querySelector('#sheet-tabs');
 const table = document.querySelector('#data-table');
@@ -21,20 +18,6 @@ const storageStatus = document.querySelector('#storage-status');
 
 let workbookData = [];
 let activeSheetIndex = 0;
-
-const normalizeRows = (rows) => {
-  const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
-  if (!width) return { headers: [], rows: [] };
-  const rawHeaders = rows[0].map((value, index) => String(value ?? '').trim() || `Column ${index + 1}`);
-  const headers = rawHeaders.map((header, index) => {
-    const duplicateCount = rawHeaders.slice(0, index).filter((item) => item === header).length;
-    return duplicateCount ? `${header} ${duplicateCount + 1}` : header;
-  });
-  return {
-    headers: [...headers, ...Array.from({ length: width - headers.length }, (_, index) => `Column ${headers.length + index + 1}`)],
-    rows: rows.slice(1).map((row) => [...row, ...Array(width - row.length).fill('')].map((value) => value ?? ''))
-  };
-};
 
 const saveWorkbook = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(workbookData));
@@ -137,15 +120,6 @@ const renderTable = () => {
   tableSummary.textContent = `${sheet.name}: ${visibleRows.length} of ${sheet.rows.length} rows, ${sheet.headers.length} columns`;
 };
 
-const loadWorkbook = (sheets) => {
-  workbookData = sheets;
-  activeSheetIndex = 0;
-  saveWorkbook();
-  renderTabs();
-  renderTable();
-  setMessage(`Imported ${sheets.length} worksheet${sheets.length === 1 ? '' : 's'}. All rows are available for mapping.`);
-};
-
 const closeRowEditor = () => {
   if (rowEditor) rowEditor.hidden = true;
   rowEditorFields?.replaceChildren();
@@ -190,48 +164,6 @@ rowEditor?.addEventListener('submit', (event) => {
   setMessage(`Added a row to ${sheet.name}. The workbook is synced across devices.`);
 });
 
-const syncToEndorsement = async () => {
-  if (!workbookData.length) {
-    setMessage('Import a workbook before syncing.', true);
-    return;
-  }
-  try {
-    const target = window.open('../index.html', 'endorsementPortal');
-    target?.postMessage({ type: 'thresholdWorkbookData', workbook: workbookData }, '*');
-    await window.firebaseSync?.saveThreshold(workbookData);
-    setMessage('Threshold data synced to Firebase and all devices.');
-  } catch (error) {
-    setMessage(`Firebase sync failed: ${error.message}`, true);
-  }
-};
-
-const handleFile = async (file) => {
-  if (!file) return;
-  try {
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-    const sheets = workbook.SheetNames.map((name) => {
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' });
-      const normalized = normalizeRows(rows);
-      return { name, headers: normalized.headers, rows: normalized.rows };
-    }).filter((sheet) => sheet.headers.length);
-    if (!sheets.length) throw new Error('No tabular data was found.');
-    loadWorkbook(sheets);
-  } catch (error) {
-    setMessage(`Could not import the workbook: ${error.message}`, true);
-  }
-};
-
-const exportCurrentSheet = () => {
-  const sheet = workbookData[activeSheetIndex];
-  if (!sheet) return;
-  const rows = [sheet.headers, ...sheet.rows];
-  const exportSheet = XLSX.utils.aoa_to_sheet(rows);
-  const exportBook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(exportBook, exportSheet, sheet.name.slice(0, 31));
-  XLSX.writeFile(exportBook, `${sheet.name}-threshold.xlsx`);
-};
-
 const restoreWorkbook = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -266,12 +198,9 @@ window.getLocalThresholdWorkbook = () => {
   }
 };
 
-workbookInput.addEventListener('change', (event) => handleFile(event.target.files[0]));
-syncButton.addEventListener('click', syncToEndorsement);
 addRowButton.addEventListener('click', openRowEditor);
 cancelRowButton.addEventListener('click', closeRowEditor);
 searchInput.addEventListener('input', renderTable);
-exportButton.addEventListener('click', exportCurrentSheet);
 clearButton.addEventListener('click', () => {
   workbookData = [];
   activeSheetIndex = 0;
