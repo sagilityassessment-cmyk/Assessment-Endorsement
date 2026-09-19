@@ -1,0 +1,115 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { getFirestore, collection, doc, setDoc, writeBatch, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyDZq9YjSktCV9onQkNKRNNVTqmpysIqOqs',
+  authDomain: 'endorsement-for-assessment-v2.firebaseapp.com',
+  projectId: 'endorsement-for-assessment-v2',
+  storageBucket: 'endorsement-for-assessment-v2.firebasestorage.app',
+  messagingSenderId: '215362510087',
+  appId: '1:215362510087:web:0b9e52f923e70fa4f2f9a2',
+  measurementId: 'G-KCHMYEPPKQ'
+};
+
+const app = initializeApp(firebaseConfig, 'endorsement-sync');
+const auth = getAuth(app);
+const db = getFirestore(app);
+const candidatesCollection = collection(db, 'endorsementCandidates');
+const thresholdDocument = doc(db, 'settings', 'thresholdWorkbook');
+
+let syncedCandidateRows = new Map();
+let candidateSyncQueue = Promise.resolve();
+let resolveAuthReady;
+const authReady = new Promise((resolve) => { resolveAuthReady = resolve; });
+const withoutSyncMetadata = (row) => {
+  const { updatedAt, ...data } = row;
+  return data;
+};
+
+const publishThreshold = (workbook) => {
+  try {
+    const parsedWorkbook = typeof workbook === 'string' ? JSON.parse(workbook) : workbook;
+    window.applyRemoteThresholdWorkbook?.(parsedWorkbook);
+  } catch (error) {
+    console.error('Firebase threshold data is invalid', error);
+  }
+};
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) return;
+  resolveAuthReady(user);
+  onSnapshot(candidatesCollection, (snapshot) => {
+    const rows = snapshot.docs
+      .map((item) => withoutSyncMetadata(item.data()))
+      .sort((first, second) => Number(first.order ?? 0) - Number(second.order ?? 0));
+    syncedCandidateRows = new Map(rows.map((row) => [row.recordId, JSON.stringify(row)]));
+    if (!rows.length) {
+      const localRows = window.getLocalHistoryRows?.() || [];
+      if (localRows.length) {
+        window.firebaseSync?.saveRows(localRows);
+        return;
+      }
+    }
+    window.applyRemoteHistoryRows?.(rows);
+  }, (error) => console.error('Firebase candidate sync failed', error));
+  onSnapshot(thresholdDocument, (snapshot) => {
+    const workbook = snapshot.data()?.workbook;
+    if (typeof workbook === 'string' || Array.isArray(workbook)) publishThreshold(workbook);
+    else if (!snapshot.exists()) {
+      const localWorkbook = window.getLocalThresholdWorkbook?.() || [];
+      if (localWorkbook.length) window.firebaseSync?.saveThreshold(localWorkbook);
+    }
+  }, (error) => console.error('Firebase threshold sync failed', error));
+});
+
+signInAnonymously(auth).catch((error) => {
+  console.error('Firebase anonymous sign-in failed', error);
+  resolveAuthReady(null);
+});
+
+window.firebaseSync = {
+  saveRows(rows) {
+    const requestedRows = rows.map((row, index) => ({
+      ...row,
+      recordId: row.recordId || `candidate-${index}`,
+      order: index
+    }));
+    candidateSyncQueue = candidateSyncQueue.then(() => authReady.then(async (user) => {
+      if (!user) return;
+      const nextRows = new Map(requestedRows.map((row) => [row.recordId, JSON.stringify(row)]));
+      const changedRows = requestedRows.filter((row) => syncedCandidateRows.get(row.recordId) !== JSON.stringify(withoutSyncMetadata(row)));
+      const deletedIds = [...syncedCandidateRows.keys()].filter((recordId) => !nextRows.has(recordId));
+      const operationCount = Math.max(changedRows.length, deletedIds.length);
+      for (let start = 0; start < operationCount; start += 200) {
+        const batch = writeBatch(db);
+        changedRows.slice(start, start + 200).forEach((row) => {
+          batch.set(doc(candidatesCollection, row.recordId), { ...row, updatedAt: serverTimestamp() }, { merge: true });
+        });
+        deletedIds.slice(start, start + 200).forEach((recordId) => {
+          batch.delete(doc(candidatesCollection, recordId));
+        });
+        await batch.commit();
+      }
+      syncedCandidateRows = nextRows;
+    })).catch((error) => console.error('Firebase candidate save failed', error));
+    return candidateSyncQueue;
+  },
+  deleteRows(recordIds) {
+    const ids = [...new Set(recordIds.filter(Boolean))];
+    candidateSyncQueue = candidateSyncQueue.then(() => authReady.then(async (user) => {
+      if (!user || !ids.length) return;
+      const batch = writeBatch(db);
+      ids.forEach((recordId) => batch.delete(doc(candidatesCollection, recordId)));
+      await batch.commit();
+      ids.forEach((recordId) => syncedCandidateRows.delete(recordId));
+    })).catch((error) => console.error('Firebase candidate delete failed', error));
+    return candidateSyncQueue;
+  },
+  saveThreshold(workbook) {
+    return authReady.then((user) => {
+      if (!user) return;
+      return setDoc(thresholdDocument, { workbook: JSON.stringify(workbook), updatedAt: serverTimestamp() });
+    }).catch((error) => console.error('Firebase threshold save failed', error));
+  }
+};
